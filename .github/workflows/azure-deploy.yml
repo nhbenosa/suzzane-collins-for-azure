@@ -1,4 +1,4 @@
-name: Deploy to Azure App Service
+name: Build and deploy Docker image to Azure Web App
 
 on:
   push:
@@ -9,25 +9,34 @@ jobs:
   build-and-deploy:
     runs-on: ubuntu-latest
 
+    env:
+      IMAGE_NAME: ${{ secrets.ACR_LOGIN_SERVER }}/app-suzzane-collins:latest
+
     steps:
-      - name: Checkout code
+      - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Set up Node.js
-        uses: actions/setup-node@v4
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to Azure Container Registry
+        uses: azure/docker-login@v1
         with:
-          node-version: '20'
-          cache: 'npm'
+          login-server: ${{ secrets.ACR_LOGIN_SERVER }}
+          username: ${{ secrets.ACR_USERNAME }}
+          password: ${{ secrets.ACR_PASSWORD }}
 
-      - name: Install dependencies
-        run: npm ci
+      - name: Build and push Docker image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: ./Dockerfile
+          push: true
+          tags: ${{ env.IMAGE_NAME }}
 
-      - name: Build React app
-        run: npm run build
-
-      - name: Deploy to Azure Web App
+      - name: Deploy container image to Azure Web App
         uses: azure/webapps-deploy@v3
         with:
           app-name: 'app-suzzane-collins'
           publish-profile: ${{ secrets.AZURE_WEBAPP_PUBLISH_PROFILE }}
-          package: ./build
+          images: ${{ env.IMAGE_NAME }}
